@@ -210,6 +210,17 @@
   const D = window.BRIDGE_DATA;
   const S = D.structures.features, R = D.reaches.features;
 
+  /* Season status updates that post-date the design reach layer */
+  const STATUS = {
+    "Meyers Canyon": {Treatment_Type:"No Treatments",
+      note:"Deferred. The team opted not to take on Meyers Canyon in 2026; the BDA pilot remains a candidate for a later phase."},
+    "Manning Exclosure 02": {
+      note:"Still planned. Crew is completing minor work here this week, keeping space around the groundwater well transect."}
+  };
+  R.forEach(f=>{const u=STATUS[f.properties.Reach_Name]; if(u){
+    if(u.Treatment_Type){ f.properties.Design_Treatment=f.properties.Treatment_Type; f.properties.Treatment_Type=u.Treatment_Type; }
+    f.properties.Status_Note=u.note; }});
+
   /* ---------- Style dictionaries (TU palette) ---------- */
   const TYPE = {
     "BDA":              {color:"#3C7FC3", label:"Beaver Dam Analog (BDA)",
@@ -295,6 +306,7 @@
         <dt>Sinuosity</dt><dd>${sin}</dd>
         ${builtRow}
       </dl>
+      ${p.Status_Note?`<div class="note" style="font-style:normal"><b>2026 status.</b> ${p.Status_Note}</div>`:""}
       ${p.Design_Narrative?`<div class="narr"><b>Design intent.</b> ${p.Design_Narrative}</div>`:""}
     </div>`;
   }
@@ -501,7 +513,8 @@
       ["noposts", cnt("noposts"), "Post count not recorded", "BDA, PALS, or hybrid structures missing a post count, which limits material accounting."]
     ];
     let h=items.filter(i=>i[1]).map(([id,n,t,d])=>`<div class="flag" data-id="${id}"><span class="n">${n}</span><p><b>${t}</b>${d}</p></div>`).join("");
-    if(unbuilt.length) h+=`<div class="flag" data-id="unbuilt"><span class="n">${unbuilt.length}</span><p><b>Designated reaches with no structures recorded</b>${unbuilt.join(" and ")} — design estimates of ${unbuilt.map(n=>{const p=R.find(r=>r.properties.Reach_Name===n).properties;return (p.Estimated_BDA||0)+(p.Estimated_PALS||0);}).join(" and ")} structures. Deferred, or not yet recorded?</p></div>`;
+    if(unbuilt.length) h+=`<div class="flag" data-id="unbuilt"><span class="n">${unbuilt.length}</span><p><b>${unbuilt.length===1?"Designated reach":"Designated reaches"} still to be treated</b>${unbuilt.map(n=>{const p=R.find(r=>r.properties.Reach_Name===n).properties;
+      return `${n} (design est. ${(p.Estimated_BDA||0)+(p.Estimated_PALS||0)} structures). ${p.Status_Note||""}`;}).join(" ")}</p></div>`;
     box.innerHTML=h;
     box.querySelectorAll(".flag").forEach(el=>el.addEventListener("click",()=>{
       if(el.dataset.id==="unbuilt"){ const b=L.latLngBounds([]); unbuilt.forEach(n=>b.extend(reachLayers[n].getBounds()));
