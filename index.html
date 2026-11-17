@@ -126,8 +126,11 @@
   .legend h4+div{margin-bottom:8px}
   .legend .row{display:flex;align-items:center;gap:8px}
   .legend .poly{width:18px;height:12px;border-radius:2px;border:2px solid}
-  .reach-label{background:rgba(28,60,92,.88);color:#fff;border:none;border-radius:4px;font-family:var(--hd);font-weight:700;letter-spacing:.04em;font-size:12.5px;padding:2px 7px;box-shadow:none}
-  .reach-label:before{display:none}
+  .reach-name{background:none;border:none}
+  .reach-name span{display:inline-block;transform:translate(-50%,-50%);white-space:nowrap;
+    font-family:var(--hd);font-weight:700;font-size:11.5px;letter-spacing:.03em;line-height:1;color:#fff;
+    background:rgba(11,22,32,.66);border-radius:3px;padding:2px 5px;pointer-events:none}
+  .labels-off .reach-name{display:none}
   .leaflet-tooltip.st-tip{font-family:var(--bd);font-size:12px;font-weight:600}
 
   @media (max-width: 900px){
@@ -224,9 +227,9 @@
   };
   const TYPE_ORDER = ["BDA","PALS / Wood Jam","Hybrid Structure","Rock Structure","Other","Wood Seeding"];
   const TREAT = {
-    "Structural Treatments": {color:"#3C7856", label:"Structural treatments (2026)", dash:null, fill:.16},
-    "Valley Grading":        {color:"#D29A3E", label:"Valley grading (future phase)", dash:"6 5", fill:.10},
-    "No Treatments":         {color:"#A9B3BA", label:"No treatment in 2026", dash:"3 5", fill:.05}
+    "Structural Treatments": {color:"#3C7856", line:"#7CF0A4", label:"Structural treatments (2026)", dash:null, fill:.14},
+    "Valley Grading":        {color:"#D29A3E", line:"#FFC94A", label:"Valley grading (future phase)", dash:"7 5", fill:.08},
+    "No Treatments":         {color:"#A9B3BA", line:"#F2F5F7", label:"No treatment in 2026", dash:"4 5", fill:.04}
   };
 
   /* ---------- Derived summaries ---------- */
@@ -295,17 +298,41 @@
   }
 
   const reachLayers = {};
+  const tOf = f=>TREAT[f.properties.Treatment_Type]||TREAT["No Treatments"];
+  /* Dark casing under each outline so boundaries read over imagery */
+  const reachCasing = L.geoJSON(D.reaches,{interactive:false,
+    style:()=>({color:"#0b1620", weight:5.5, opacity:.6, fill:false, lineJoin:"round"})}).addTo(map);
   const reachGroup = L.geoJSON(D.reaches,{
-    style: f=>{const t=TREAT[f.properties.Treatment_Type]||TREAT["No Treatments"];
-      return {color:t.color, weight:2.2, opacity:.95, dashArray:t.dash, fillColor:t.color, fillOpacity:t.fill};},
+    style: f=>{const t=tOf(f);
+      return {color:t.line, weight:2.4, opacity:1, dashArray:t.dash, lineJoin:"round", fillColor:t.line, fillOpacity:t.fill};},
     onEachFeature:(f,l)=>{
       reachLayers[f.properties.Reach_Name]=l;
       l.bindPopup(reachPopup(f.properties),{maxWidth:320});
-      l.bindTooltip(f.properties.Reach_Name,{sticky:true,className:"reach-label",direction:"top",offset:[0,-6]});
-      l.on("mouseover",()=>l.setStyle({weight:3.5, fillOpacity:(TREAT[f.properties.Treatment_Type]||TREAT["No Treatments"]).fill+.1}));
+      l.on("mouseover",()=>l.setStyle({weight:3.6, fillOpacity:tOf(f).fill+.12}));
       l.on("mouseout",()=>reachGroup.resetStyle(l));
     }
   }).addTo(map);
+
+  /* Persistent reach name labels, anchored inside each polygon */
+  function inRing(x,y,r){let c=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const[xi,yi]=r[i],[xj,yj]=r[j];
+    if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/(yj-yi)+xi)c=!c;}return c;}
+  function labelPoint(g){
+    const polys=g.type==="MultiPolygon"?g.coordinates:[g.coordinates];
+    let ring=polys[0][0], best=0;
+    polys.forEach(p=>{const r=p[0];let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(r[j][0]+r[i][0])*(r[j][1]-r[i][1]);
+      if(Math.abs(a)>best){best=Math.abs(a);ring=r;}});
+    const cx=ring.reduce((a,p)=>a+p[0],0)/ring.length, cy=ring.reduce((a,p)=>a+p[1],0)/ring.length;
+    if(inRing(cx,cy,ring)) return [cy,cx];
+    // fall back: scan a horizontal line through the centroid and take the middle of the widest inside span
+    const xs=[];for(let i=0,j=ring.length-1;i<ring.length;j=i++){const[xi,yi]=ring[i],[xj,yj]=ring[j];
+      if((yi>cy)!==(yj>cy))xs.push(xi+(cy-yi)*(xj-xi)/(yj-yi));}
+    xs.sort((a,b)=>a-b);let bx=cx,bw=-1;for(let k=0;k+1<xs.length;k+=2){if(xs[k+1]-xs[k]>bw){bw=xs[k+1]-xs[k];bx=(xs[k]+xs[k+1])/2;}}
+    return [cy,bx];
+  }
+  const reachLabels = L.layerGroup(D.reaches.features.map(f=>
+    L.marker(labelPoint(f.geometry),{interactive:false, keyboard:false,
+      icon:L.divIcon({className:"reach-name", html:`<span>${f.properties.Reach_Name}</span>`, iconSize:null})})
+  )).addTo(map);
 
   /* Structures */
   const state = {types:new Set(TYPE_ORDER), maint:false, date:null, flag:null, focus:null};
@@ -484,13 +511,18 @@
   /* ---------- Legend + layer control ---------- */
   const legend=L.control({position:"bottomright"});
   legend.onAdd=()=>{const d=L.DomUtil.create("div","legend");
-    d.innerHTML=`<h4>Reach treatment</h4><div>${Object.values(TREAT).map(t=>`<div class="row"><span class="poly" style="border-color:${t.color};background:${t.color}33;${t.dash?"border-style:dashed":""}"></span>${t.label}</div>`).join("")}</div>
+    d.innerHTML=`<h4>Reach treatment</h4><div>${Object.values(TREAT).map(t=>`<div class="row"><span class="poly" style="border-color:${t.line};background:#33433a;box-shadow:0 0 0 1px #0b1620;${t.dash?"border-style:dashed":""}"></span>${t.label}</div>`).join("")}</div>
       <h4>Structures built</h4><div>${TYPE_ORDER.filter(t=>typeCounts[t]).map(t=>`<div class="row"><span class="sw" style="background:${TYPE[t].color}"></span>${t}</div>`).join("")}</div>`;
     L.DomEvent.disableClickPropagation(d); return d;};
   legend.addTo(map);
-  L.control.layers({"Imagery":imagery,"Topographic":topo,"Light":light},{"Reaches":reachGroup,"As-built structures":structGroup},{position:"topright",collapsed:true}).addTo(map);
+  L.control.layers({"Imagery":imagery,"Topographic":topo,"Light":light},{"Reaches":reachGroup,"Reach labels":reachLabels,"As-built structures":structGroup},{position:"topright",collapsed:true}).addTo(map);
 
+  map.on("overlayadd overlayremove",e=>{ if(e.layer===reachGroup){ e.type==="overlayadd"?reachCasing.addTo(map).bringToBack():map.removeLayer(reachCasing);} });
+  /* hide labels when zoomed far out, where they would pile up */
+  const syncLabels=()=>map.getContainer().classList.toggle("labels-off", map.getZoom()<13);
+  map.on("zoomend",syncLabels);
   map.fitBounds(reachGroup.getBounds(),{padding:[20,20]});
+  syncLabels();
   render();
 })();
 </script>
