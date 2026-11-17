@@ -174,8 +174,8 @@
 
       <section class="card">
         <h2>Build progress</h2>
-        <p class="hint">Structures recorded per field day. Click a bar to isolate that day.</p>
-        <svg id="timeline" role="img" aria-label="Structures recorded per field day"></svg>
+        <p class="hint">Structures by the date each record was entered in the field app, which can lag construction. Click a bar to isolate that day.</p>
+        <svg id="timeline" role="img" aria-label="Structures by record entry date"></svg>
         <div id="tlnote"></div>
       </section>
 
@@ -195,7 +195,7 @@
       </section>
 
       <div class="foot">
-        <b>Data</b> · As-built structures: <code>Bridge_Raw_AsBuilt_20261117</code> (field-collected points, recorded Sep–Oct 2026). Reaches and treatment designations: <code>Bridge Creek Reaches</code> (2026 TU design). Design estimates are planning targets; field-fitting is expected to shift counts. Imagery © Esri and its data providers.<br>
+        <b>Data</b> · As-built structures: <code>Bridge_Raw_AsBuilt_20261117</code> (field-collected points; construction Sept. 8 – Oct. 27, 2026, across 4 hitches). Reaches and treatment designations: <code>Bridge Creek Reaches</code> (2026 TU design). Design estimates are planning targets; field-fitting is expected to shift counts. Imagery © Esri and its data providers.<br>
         Prepared by Trout Unlimited · November 2026
       </div>
     </aside>
@@ -241,19 +241,21 @@
   const reachesTreated = new Set(S.map(f=>f.properties.reach).filter(Boolean)).size;
   const designReaches = R.filter(r=>r.properties.Treatment_Type==="Structural Treatments").map(r=>r.properties.Reach_Name);
   const designTreated = designReaches.filter(n=>S.some(f=>f.properties.reach===n)).length;
+  /* Construction season (crew schedule, not GPS record dates) */
+  const SEASON = {start:"Sept. 8", end:"Oct. 27", days:32, hitches:4};
   const dates = [...new Set(S.map(f=>f.properties.date))].sort();
   const typeCounts = {}; S.forEach(f=>typeCounts[f.properties.type]=(typeCounts[f.properties.type]||0)+1);
   const maintN = S.filter(f=>f.properties.maint==="Yes").length;
   const bda = typeCounts["BDA"]||0, pals = typeCounts["PALS / Wood Jam"]||0;
 
   document.getElementById("lede").innerHTML =
-    `Over <b>${dates.length} field days</b> between ${fmtDate(dates[0])} and ${fmtDate(dates[dates.length-1])}, crews built <b>${fmt(total)} low-tech structures</b> across ${reachesTreated} reaches of Bridge Creek — led by <b>${bda} beaver dam analogs</b> and <b>${pals} post-assisted log structures</b> designed to slow water, store sediment, and reconnect the creek to its floodplain.`;
+    `Over <b>${SEASON.hitches} hitches and ${SEASON.days} field days</b> between ${SEASON.start} and ${SEASON.end}, crews built <b>${fmt(total)} low-tech structures</b> across ${reachesTreated} reaches of Bridge Creek — led by <b>${bda} beaver dam analogs</b> and <b>${pals} post-assisted log structures</b> designed to slow water, store sediment, and reconnect the creek to its floodplain.`;
 
   document.getElementById("kpis").innerHTML = [
     [fmt(total),"Structures built",`${TYPE_ORDER.filter(t=>typeCounts[t]).length} structure types`],
     [fmt(posts),"Posts recorded",`on ${withPosts} of ${total} structures`],
     [designTreated,"Design reaches treated",`of ${designReaches.length} designated for 2026`],
-    [dates.length,"Field days",`${fmtDate(dates[0])} – ${fmtDate(dates[dates.length-1])}`]
+    [SEASON.days,"Field days",`${SEASON.hitches} hitches · ${SEASON.start} – ${SEASON.end}`]
   ].map(([v,l,f])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div><div class="f">${f}</div></div>`).join("");
 
   /* ---------- Map ---------- */
@@ -348,7 +350,7 @@
         <dt>Reach</dt><dd>${p.reach || `<span class="warn">Outside mapped reach</span> (near ${p.near})`}</dd>
         <dt>Posts</dt><dd>${p.posts!=null?p.posts:"<span class='warn'>not recorded</span>"}</dd>
         <dt>Maintenance</dt><dd>${p.maint==="Yes"?"<span class='warn'>Flagged</span>":(p.maint||"—")}</dd>
-        <dt>Recorded</dt><dd>${fmtDate(p.date)}, 2026</dd>
+        <dt>Record entered</dt><dd>${fmtDate(p.date)}, 2026</dd>
         <dt>Record ID</dt><dd>${p.id}</dd>
       </dl>
       ${p.notes?`<div class="note">“${p.notes.trim()}”</div>`:""}
