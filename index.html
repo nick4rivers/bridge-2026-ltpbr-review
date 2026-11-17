@@ -195,7 +195,7 @@
       </section>
 
       <div class="foot">
-        <b>Data</b> · As-built structures: <code>Bridge_Raw_AsBuilt_20261117</code> (field-collected points; construction Sept. 8 – Oct. 27, 2026, across 4 hitches). Reaches and treatment designations: <code>Bridge Creek Reaches</code> (2026 TU design). Design estimates are planning targets; field-fitting is expected to shift counts. Imagery © Esri and its data providers.<br>
+        <b>Data</b> · As-built structures: <code>Bridge_Raw_AsBuilt_20261117</code> (field-collected points; construction Sept. 8 – Oct. 27, 2026, across 4 hitches)<span id="exclNote"></span>. Reaches and treatment designations: <code>Bridge Creek Reaches</code> (2026 TU design). Design estimates are planning targets; field-fitting is expected to shift counts. Imagery © Esri and its data providers.<br>
         Prepared by Trout Unlimited · November 2026
       </div>
     </aside>
@@ -208,7 +208,10 @@
 <script>
 (function(){
   const D = window.BRIDGE_DATA;
-  const S = D.structures.features, R = D.reaches.features;
+  const R = D.reaches.features;
+  /* Exclude points recorded outside mapped reaches (gap between Connolly and Pats Cabin) */
+  const S = D.structures.features.filter(f=>f.properties.reach);
+  const EXCLUDED = D.structures.features.length - S.length;
 
   /* Season status updates that post-date the design reach layer */
   const STATUS = {
@@ -250,6 +253,7 @@
   const posts = S.reduce((a,f)=>a+(f.properties.posts||0),0);
   const withPosts = S.filter(f=>f.properties.posts!=null).length;
   const reachesTreated = new Set(S.map(f=>f.properties.reach).filter(Boolean)).size;
+  if(EXCLUDED) document.getElementById("exclNote").textContent = `; ${EXCLUDED} points recorded outside mapped reaches, between Connolly and Pats Cabin, are excluded`;
   const designReaches = R.filter(r=>r.properties.Treatment_Type==="Structural Treatments").map(r=>r.properties.Reach_Name);
   const designTreated = designReaches.filter(n=>S.some(f=>f.properties.reach===n)).length;
   /* Construction season (crew schedule, not GPS record dates) */
